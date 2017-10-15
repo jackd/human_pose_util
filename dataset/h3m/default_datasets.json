@@ -1,0 +1,17 @@
+{
+  "h3m_base": {},
+  "h3m_consistent": {
+    "consistent": true
+  },
+  "h3m_consistent_scaled": {
+    "consistent": true,
+    "pixel_scale": 1000,
+    "space_scale": 1000
+  },
+  "h3m_consistent_scaled_c1": {
+    "consistent": true,
+    "pixel_scale": 1000,
+    "space_scale": 1000,
+    "camera_indices": [1]
+  }
+}

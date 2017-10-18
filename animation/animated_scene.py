@@ -1,3 +1,4 @@
+from __future__ import division
 import scene
 from skeleton_vis import limb_collection_animator
 

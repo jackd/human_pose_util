@@ -3,6 +3,7 @@ from abc import abstractmethod
 
 
 def implements_dataset(obj):
+    """Test whether the given object satisfies the Dataset interface."""
     return all([hasattr(obj, n) for n in
                 ['attrs', 'keys', 'items',
                  '__getitem__', '__contains__', '__iter__']])
@@ -151,6 +152,7 @@ def copy_dataset(dataset):
 
 class MappedDataset(DelegatingDataset):
     """Creates a mapped view of the base dataset."""
+
     def __init__(self, base_dataset, child_map_fn, attr_map_fn=None):
         """
         Create a mapped view of the base dataset.
@@ -199,6 +201,7 @@ class MappedDataset(DelegatingDataset):
 
 class FilteredDataset(DelegatingDataset):
     """Dataset with examples filtered."""
+
     def __init__(self, base_dataset, filter_fn):
         self._filter_fn = filter_fn
         super(FilteredDataset, self).__init__(base_dataset)
@@ -216,6 +219,7 @@ class FilteredDataset(DelegatingDataset):
 
 
 def implements_attribute_manager(obj):
+    """Test whether the target implements the AttributeManager interface."""
     return all([hasattr(obj, n) for n in
                ['keys', '__getitem__', '__contains__', '__iter__']])
 
@@ -228,6 +232,7 @@ class AttributeManager(object):
     since h5py has it's own implementation, and it's implemented by dicts
     anyway. Use `implements_attribute_manager(obj)` instead
     """
+
     @abstractmethod
     def keys():
         """Iterable of keys."""
@@ -242,15 +247,18 @@ class AttributeManager(object):
         raise NotImplementedError('Abstract method')
 
     def __iter__(self):
+        """Key iterator."""
         return iter(self.keys())
 
     def items(self):
         for k in self.keys():
+            """Iterator for all key, value pairs."""
             yield k, self[k]
 
 
 class MappedAttributeManager(AttributeManager):
     """AttributeManager that maps base values according to other values."""
+
     def __init__(self, base_manager, map_fn):
         """
         Create an AttributeManager that modifies a base.

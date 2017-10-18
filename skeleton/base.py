@@ -119,6 +119,22 @@ class SkeletonConverter(object):
         import tensorflow as tf
         return tf.gather(input_data, self._indices, axis=-2)
 
+    _identity = None
+
+    @staticmethod
+    def identity():
+        if SkeletonConverter._identity is None:
+            SkeletonConverter._identity = IdentityConverter()
+        return SkeletonConverter._identity
+
+
+class IdentityConverter(SkeletonConverter):
+    def convert(self, input_data):
+        return input_data
+
+    def convert_tf(self, input_data):
+        return input_data
+
 
 def skeleton_height(p3, l_foot_index, r_foot_index, head_index):
     displ = (p3[:, l_foot_index] + p3[:, r_foot_index]) / 2 - p3[:, head_index]

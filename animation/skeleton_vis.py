@@ -42,9 +42,10 @@ class LimbCollection(Stateful):
                 linewidth='local', color='local') for _ in range(3)]
 
         for i, segment in enumerate(self.body_segments):
-            segment.append(
-                pose[children[i]], pose[parents[i]],
-                linewidth=linewidth)
+            c = children[i]
+            if len(c) > 0:
+                p = parents[i]
+                segment.append(pose[c], pose[p], linewidth=linewidth)
 
         self.body_segments[_side_index['l']]['color'] = 0, 0, 1, 1
         self.body_segments[_side_index['r']]['color'] = 1, 0, 0, 1

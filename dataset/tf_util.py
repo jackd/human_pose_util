@@ -71,7 +71,7 @@ def write_records(path, feature_specs, examples_fn):
             k = spec.key
             if spec.dtype in _float_dtypes:
                 feature_fns[k] = lambda feature, value: \
-                    feature.float32_list.value.extend(value)
+                    feature.float_list.value.extend(value)
             elif spec.dtype in _int_dtypes:
                 feature_fns[k] = lambda feature, value: \
                     feature.int64_list.value.extend(value)

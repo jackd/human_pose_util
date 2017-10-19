@@ -17,11 +17,9 @@ export MPI_INF_PATH=/path/to/mpi_inf_3dhp_dir
 Consider putting this in your `~/.bashrc` file, otherwise you'll have to repeat this step for each new terminal.
 5. Run `dataset.py` as a script. This should convert the `.mat` and `.calibration` files to `hdf5` format.
 
-## Status
-Still an active work in progress.
+## Notes
+* I'm unsure of the difference between `univ_annot3` and `annot3`. The data seems very similar: joint positions in camera coordinate frame (`p3c`).
 
-TODO:
-* port `get_sequence_info` (and `get_camera_set`?)
-* verify projections/camera properties
-* work out what `univ_annot3` actually means. Same across all cameras?
-* transformed datasets/registrations
+## TODO
+* Move checks from bottom of `dataset.py` to separate test script
+* Implement dataset transforms

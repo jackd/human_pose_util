@@ -1,4 +1,5 @@
-from human_pose_util.skeleton import Skeleton, SkeletonConverter
+from human_pose_util.skeleton import Skeleton, SkeletonConverter, \
+    skeleton_height, front_angle
 
 spine3 = 'spine3'
 spine4 = 'spine4'
@@ -107,6 +108,21 @@ _parents_o2 = _transform({
 _parents = {'o1': _parents_o1, 'o2': _parents_o2}
 
 
+class MpiInfSkeleton(Skeleton):
+    def __init__(self, joint_parent_links):
+        super(MpiInfSkeleton, self).__init__(joint_parent_links)
+
+    def height(self, p3):
+        return skeleton_height(
+            p3,
+            self.joint_index(l_ankle),
+            self.joint_index(r_ankle),
+            self.joint_index(head_top))
+
+    def front_angle(self, p3):
+        return front_angle(p3, self)
+
+
 def skeleton(joint_set_name='relevant', order='o1'):
     joint_idx = _joint_idx[joint_set_name]
     joints = [all_joint_names[j] for j in joint_idx]
@@ -116,8 +132,7 @@ def skeleton(joint_set_name='relevant', order='o1'):
     for i in range(n_joints):
         if parents[i] == joints[i]:
             parents[i] = None
-        # print('%s -> %s' % (joints[i], parents[i]))
-    return Skeleton(tuple(zip(joints, parents)))
+    return MpiInfSkeleton(tuple(zip(joints, parents)))
 
 
 base = skeleton('all', 'o1')

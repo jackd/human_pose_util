@@ -5,7 +5,11 @@ import numpy as np
 from skeleton import converters
 from human_pose_util.dataset.interface import Dataset
 from human_pose_util.transforms.np_impl import euler_from_matrix_nh
+from human_pose_util.transforms import np_impl
 
+from human_pose_util.dataset.spec import scaled_dataset
+from human_pose_util.dataset.spec import filter_by_camera
+from human_pose_util.dataset.spec import modified_fps_dataset
 
 n_cameras = 14
 
@@ -69,11 +73,13 @@ def to_hdf5(overwrite=False):
     try:
         with h5py.File(_data_path, 'w') as f:
             subjects = [s for s in os.listdir(dataset_dir) if s[0] == 'S']
+            subjects.sort()
             for subject in subjects:
                 print('Starting subject %s' % subject)
                 subj_dir = os.path.join(dataset_dir, subject)
                 subj_group = f.create_group(subject)
                 sequences = [seq for seq in os.listdir(subj_dir)]
+                sequences.sort()
                 for sequence in sequences:
                     seq_dir = os.path.join(subj_dir, sequence)
                     seq_group = subj_group.create_group(sequence)
@@ -149,7 +155,6 @@ class MpiInfDataset(Dataset):
 
 class MpiInfExample(Dataset):
     _group_map = {
-        'p3w': 'univ_annot3',
         'p3c': 'annot3',
         'p2': 'annot2',
     }
@@ -169,7 +174,7 @@ class MpiInfExample(Dataset):
         intr = self._group.attrs['intrinsic'][camera]
         f = np.diag(intr)
         c = intr[:, 2]
-        r = euler_from_matrix_nh(R)
+        r = np.array(euler_from_matrix_nh(R))
         shape = self._group.attrs['shape'][camera]
         self._converter = converter
         self._attrs = {
@@ -180,10 +185,19 @@ class MpiInfExample(Dataset):
             'c': c,
             'fps': 25,
             'shape': shape,
-            'camera': camera
+            'camera_id': camera,
+            'subject_id': subject,
+            'sequence_id': sequence,
+            'space_scale': 1,
+            'pixel_scale': 1,
         }
 
     def __getitem__(self, key):
+        if key == 'p3w':
+            p3c = self['p3c']
+            r = self.attrs['r']
+            t = self.attrs['t']
+            return np_impl.transform_frame(p3c, r, t, inverse=True)
         return self._converter.convert(
             self._group[MpiInfExample._group_map[key]][self._camera])
 
@@ -192,25 +206,159 @@ class MpiInfExample(Dataset):
         return self._attrs
 
 
+def get_mpi_inf_dataset(
+        train=True, skeleton_id='relevant', space_scale=1, pixel_scale=1,
+        cameras=None, fps=None):
+    """
+    Get the `mpi_inf` dataset with the specified parameters.
+
+    Args:
+        train: train or eval specifier
+        skeleton_id: one of ['relevant', 'base', 'extended']
+        space_scale: scaling factor applied to 3D positions
+        pixel_scale: scaling factor applied to 2D positions
+        cameras: list of indices of cameras to use.
+        fps: changes frame rate if specified.
+    """
+    dataset = MpiInfDataset(skeleton_id)
+    if not train:
+        raise NotImplementedError()
+    if pixel_scale != 1 or space_scale != 1:
+        dataset = scaled_dataset(
+            pixel_scale=pixel_scale, space_scale=space_scale)
+    if cameras is not None:
+        dataset = filter_by_camera(dataset, cameras)
+    if fps is not None:
+        dataset = modified_fps_dataset(dataset, fps)
+    return dataset
+
+
+def register_all():
+    from human_pose_util.serialization import dataset_register
+    from human_pose_util.serialization import register_dataset_id_fn
+    from human_pose_util.serialization import skeleton_register
+    from skeleton import relevant, base, extended
+
+    skeleton_register['mpi-inf-relevant'] = relevant
+    skeleton_register['mpi-inf-base'] = base
+    skeleton_register['mpi-inf-extended'] = extended
+
+    dataset_register['mpi-inf'] = get_mpi_inf_dataset
+    register_dataset_id_fn(
+        'mpi-inf', os.path.join(_root_dir, 'default_datasets.json'))
+
+
 def reorient_p3w(p3w):
     """Reorient p3w and shift for better visualization."""
     from human_pose_util.transforms.np_impl import rotate_about
     print('rotating')
-    p3w = rotate_about(p3w, -np.pi/2, 0)
+    p3w = rotate_about(p3w, np.pi/2, 0)
     p3w[..., -1] -= np.min(p3w, axis=(0, 1))[-1]
     return p3w
 
 
 if __name__ == '__main__':
-    from human_pose_util.animation.animated_scene import \
-        add_limb_collection_animator
-    from human_pose_util.animation.animated_scene import run
-    from skeleton import relevant
-    dataset = MpiInfDataset('relevant')
-    key = list(dataset.keys())[0]
-    example = dataset[key]
+    from skeleton import skeletons
+    skeleton_id = 'relevant'
+    dataset = MpiInfDataset(skeleton_id)
+    skeleton = skeletons[skeleton_id]
+    keys = list(dataset.keys())
 
-    p3w = reorient_p3w(example['p3w']) / 2000
-    skeleton = relevant
-    add_limb_collection_animator(skeleton, p3w, dataset.attrs['fps'])
-    run(fps=dataset.attrs['fps'])
+    def check_world_coordinates():
+        k0 = keys[0]
+        k1 = keys[1]
+        p3ws = [dataset[k]['p3w'] for k in [k0, k1]]
+        print(np.max(np.abs(p3ws[0] - p3ws[1])))
+
+    def check_height():
+        example = dataset[keys]
+        p3w = example['p3w']
+        print(np.max(skeleton.height(p3w)))
+
+    def check_coordinate_transforms():
+        example = dataset[keys]
+        p3w = example['p3w']
+        p3c = example['p3c']
+        r = example.attrs['r']
+        t = example.attrs['t']
+        transformed = np_impl.transform_frame(p3w, r, t)
+        print(np.max(np.abs(transformed - p3c)), np.max(np.abs(p3c)))
+
+    def check_projections():
+        from human_pose_util.skeleton import vis2d
+        import matplotlib.pyplot as plt
+        example = dataset[keys[0]]
+        p2 = example['p2']
+        mins = np.min(p2, axis=1)
+        maxs = np.max(p2, axis=1)
+        n = len(mins)
+        plt.plot(range(n), mins, range(n), maxs)
+        plt.show()
+        p3c = example['p3c']
+        f = example.attrs['f']
+        c = example.attrs['c']
+        actual = np_impl.project(p3c, f, c)
+        idx = -1
+        plt.figure()
+        vis2d(skeleton, actual[idx])
+        plt.figure()
+        vis2d(skeleton, p2[idx], linewidth=4)
+        plt.show()
+        print(np.max(np.abs(actual - p2)), np.max(np.abs(p2)))
+
+    check_projections()
+
+    # p3c = example['p3c']
+    # p3w = example['p3w']
+    # r = example.attrs['r']
+    # R = example.attrs['R']
+    # R_exp = np_impl.rotation_matrix(r)
+    # t = example.attrs['t']
+
+    # print(np.max(np.abs(p3c - p3w)))
+
+    # p3c = np_impl.transform_frame(p3w, r, t, inverse=True)
+    # p3c = reorient_p3w(p3c)
+
+    # p3c_t = np_impl.transform_frame(p3w, r=r, t=t)
+    # print(np.allclose(p3c, p3c_t))
+    # print(np.max(np.abs(p3c - p3c_t)))
+    # print(p3c[0] - p3c_t[0])
+
+    # p3w_t = np_impl.transform_frame(p3c, r=r, t=t)
+    # print(np.allclose(p3w, p3w_t))
+    # print(np.max(np.abs(p3w - p3w_t)))
+    # print(p3w[0] - p3w_t[0])
+
+    # def proc(p3w, p3c):
+    #     from human_pose_util.evaluate import procrustes_error
+    #     print(np.max(np.abs(procrustes_error(p3w, p3c))))
+
+    # proc(p3w, p3c)
+
+    # def _vis_glumpy(p0, p1=None):
+    #     from skeleton import relevant
+    #     from human_pose_util.animation.animated_scene import \
+    #         add_limb_collection_animator
+    #     from human_pose_util.animation.animated_scene import run
+    #     skeleton = relevant
+    #     fps = dataset.attrs['fps']
+    #     if p0 is not None:
+    #         add_limb_collection_animator(
+    #             skeleton, p0 / 2000, fps, linewidth=2)
+    #     if p1 is not None:
+    #         add_limb_collection_animator(
+    #             skeleton, p1 / 2000, fps, linewidth=4)
+    #     run(fps=dataset.attrs['fps'])
+    #
+    # # print(np.min(p3w))
+    # # print(np.max(p3w))
+    # # print(np.max(np.abs(p3c - p3w)))
+    # # _vis_glumpy(p3c, p3w)
+    # p3w = reorient_p3w(p3ws[0])
+    # print(skeleton.front_angle(p3w).shape)
+    # p3w_r = np_impl.rotate_about(
+    #     p3w, -np.expand_dims(skeleton.front_angle(p3w), axis=-1), 2)
+    # root = skeleton.joint_index(skeleton.root_joint)
+    # p3w_r[..., :2] -= p3w_r[..., root:root+1, :2]
+    # _vis_glumpy(p3w, p3w_r)

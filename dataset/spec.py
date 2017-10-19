@@ -157,14 +157,26 @@ result_dataset_spec = DatasetSpec(
     attrs_spec=result_dataset_attrs_spec)
 
 
-def example_scaler(pixel_scale=1000, space_scale=1000):
-    def scale_space(x):
-        return x / space_scale
-
-    def scale_pixels(x):
-        return x / pixel_scale
+def example_scaler(space_scale=1000, pixel_scale=1000):
 
     def scale_example(example):
+        ss = space_scale(example) if callable(space_scale) else space_scale
+        ps = pixel_scale(example) if callable(pixel_scale) else pixel_scale
+        if ss == 1 and ps == 1:
+            return example
+
+        def scale_space(x):
+            return x / ss
+
+        def scale_pixels(x):
+            return x / ps
+
+        def inv_space_scale(x):
+            return x * ss
+
+        def inv_pixel_scale(x):
+            return x * ps
+
         return MappedDataset(example, {
                 'p3c': scale_space,
                 'p3w': scale_space,
@@ -173,21 +185,70 @@ def example_scaler(pixel_scale=1000, space_scale=1000):
                 'f': scale_pixels,
                 'c': scale_pixels,
                 't': scale_space,
+                'pixel_scale': inv_pixel_scale,
+                'space_scale': inv_space_scale
             })
     return scale_example
 
 
-def scaled_dataset(base_dataset, pixel_scale=1000, space_scale=1000):
+def scaled_dataset(base_dataset, pixel_scale=1, space_scale=1):
+    if pixel_scale == 1 and space_scale == 1:
+        return base_dataset
     scaler = example_scaler(pixel_scale=pixel_scale, space_scale=space_scale)
-    return MappedDataset(
-        base_dataset, scaler, {
-            'pixel_scale': lambda x: x * pixel_scale,
-            'space_scale': lambda x: x * space_scale})
+    return MappedDataset(base_dataset, scaler)
+
+
+def height_normalized_dataset(base_dataset):
+    heights = calculate_heights(base_dataset)
+
+    def space_scale(example):
+        return heights[example.attrs['subject_id']]
+
+    return scaled_dataset(base_dataset, space_scale=space_scale)
+
+
+def front_rotated_dataset(base_dataset, dim):
+    from human_pose_util.transforms import np_impl
+    skeleton = skeleton_register[base_dataset.attrs['skeleton_id']]
+
+    def rotate_front(x):
+        angle = skeleton.front_angle(x)
+        if len(x.shape) == 3:
+            angle = np.expand_dims(angle, axis=1)
+        return np_impl.rotate_about(x, -angle, dim)
+
+    return MappedDataset(base_dataset, {'p3w': rotate_front})
+
+
+def origin_shifted_dataset(base_dataset):
+    root_index = skeleton_register[
+        base_dataset.attrs['skeleton_id']].root_index
+
+    def shift(p3):
+        p3 = p3.copy()
+        p3[..., :2] -= p3[..., root_index:root_index+1, :2]
+        return p3
+
+    return MappedDataset(base_dataset, {'p3w': shift})
+
+
+def normalized_dataset(
+        dataset, height_normalized=True, front_rotated_dim=2,
+        origin_shifted=True):
+    if height_normalized:
+        dataset = height_normalized_dataset(dataset)
+    if front_rotated_dim is not None:
+        dataset = front_rotated_dataset(dataset, front_rotated_dim)
+    if origin_shifted:
+        dataset = origin_shifted_dataset(dataset)
+    return dataset
 
 
 def filter_by_camera(base_dataset, camera_id):
+    if not isinstance(camera_id, (list, tuple)):
+        camera_id = [camera_id]
     return FilteredDataset(
-        base_dataset, lambda ex: ex.attrs['camera_id'] == camera_id)
+        base_dataset, lambda ex: ex.attrs['camera_id'] in camera_id)
 
 
 def filter_by_subjects(base_dataset, subject_ids):
@@ -225,9 +286,7 @@ def modified_fps_dataset(dataset, target_fps):
     return MappedDataset(dataset, map_fn)
 
 
-def calculate_heights(
-        sequence_dataset, l_foot=['l_toes', 'l_ankle'],
-        r_foot=['r_toes', 'r_ankle'], head=['head-back', 'head']):
+def calculate_heights(sequence_dataset):
     from human_pose_util.register import skeleton_register
     heights = {}
     skeleton = skeleton_register[sequence_dataset.attrs['skeleton_id']]

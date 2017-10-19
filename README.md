@@ -96,3 +96,9 @@ human_pose_util.register.skeleton_register[my_skeleton_id] = my_skeleton
 After that, training/inference can procede as normal.
 
 See `human_pose_util.dataset.h3m` and `human_pose_util.dataset.eva` for examples.
+
+
+## TODO
+* Implement new serialization interface with `eva`
+* Remove old registration stuff
+* dataset/mpi_inf/README.md TODOs

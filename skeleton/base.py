@@ -17,7 +17,7 @@ class Skeleton(object):
                 self._root_joints.append(child)
             self._indices[child] = i
         if len(self._root_joints) == 0:
-            raise Exception('Skeleton must have at least 1 root joint')
+            raise Exception('Skeleton must have at least 1 root joint.')
         self._parent_indices = [
             self._indices[parent] if parent is not None else None
             for i, (c, parent) in enumerate(child_parent_links)]
@@ -26,10 +26,15 @@ class Skeleton(object):
     @property
     def root_joint(self):
         if len(self._root_joints) > 1:
-            raise Exception('Skeleton has multiple root joints')
+            raise RuntimeError('Skeleton has multiple root joints.')
         else:
             assert(len(self._root_joints) == 1)
             return self._root_joints[0]
+
+    @property
+    def root_index(self):
+        """Index of root joint."""
+        return self.joint_index(self.root_joint)
 
     @property
     def skeleton_id(self):

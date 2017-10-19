@@ -1,0 +1,12 @@
+{
+  "relevant": {},
+  "relevant_scaled": {
+    "pixel_scale": 1000,
+    "space_scale": 2048
+  },
+  "relevant_scaled_c0": {
+    "pixel_scale": 1000,
+    "space_scale": 2048,
+    "camera_indices": [0]
+  }
+}

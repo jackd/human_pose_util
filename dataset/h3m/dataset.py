@@ -1,7 +1,9 @@
 """Wrapper for dataset satisfying specs."""
 from __future__ import division
+import os
 import string
 import numpy as np
+
 from human_pose_util.dataset.interface import Dataset, AttributeManager
 from human_pose_util.dataset.interface import MappedDataset
 from human_pose_util.dataset.spec import scaled_dataset
@@ -9,6 +11,7 @@ from human_pose_util.dataset.spec import filter_by_camera
 from human_pose_util.dataset.spec import modified_fps_dataset
 
 from data import root_node
+
 from human_pose_util.transforms.np_impl import euler_from_matrix_nh
 from human_pose_util.transforms.camera_params import calculate_intrinsics
 from human_pose_util.transforms.camera_params import calculate_extrinsics
@@ -37,8 +40,6 @@ class H3mDataset(Dataset):
         self._keys = tuple(self._keys)
         self._attrs = {
             'skeleton_id': 's24',
-            'pixel_scale': 1,
-            'space_scale': 1,
         }
 
         self._examples = {
@@ -147,7 +148,9 @@ class H3mExampleAttributeManager(AttributeManager):
             'sequence_id': sequence_id,
             'camera_id': camera_id,
             'video_path': view.video_path,
-            'fps': 50
+            'fps': 50,
+            'pixel_scale': 1,
+            'space_scale': 1,
         }
         self._view = view
         self._sequence = sequence
@@ -222,6 +225,71 @@ def register_h3m_defaults():
     dataset_register['h3m_consistent_scaled_c1_10fps'] = {
         k: modified_fps_dataset(
             v, 10) for k, v in consistent_scaled_c1.items()}
+
+
+def get_h3m_dataset(
+        train=True, consistent=False, skeleton_id='s24', space_scale=1,
+        pixel_scale=1, cameras=None, fps=None):
+    """
+    Get the h3m dataset with the specified parameters.
+
+    Args:
+        train: train or eval specifier
+        consistent: if True, modifies p2 values such that projection(p3c) == p2
+        skeleton_id: one of ['s24', 's14']
+        space_scale: scaling factor applied to 3D positions
+        pixel_scale: scaling factor applied to 2D positions
+        cameras: list of indices of cameras to use.
+        fps: changes frame rate if specified.
+    """
+    dataset = H3mDataset(train)
+    if consistent:
+        dataset = consistent(dataset)
+    if skeleton_id == 's14':
+        dataset = s24_to_s14_dataset(dataset)
+    elif skeleton_id == 's24':
+        pass
+    else:
+        raise ValueError('Invalid skeleton_id: %s' % skeleton_id)
+    dataset = scaled_dataset(
+        dataset, pixel_scale=pixel_scale, space_scale=space_scale)
+    if cameras is not None:
+        dataset = filter_by_camera(dataset, cameras)
+    if fps is not None:
+        dataset = modified_fps_dataset(dataset, fps)
+    return dataset
+
+
+_root_dir = os.path.realpath(os.path.dirname(__file__))
+
+
+def get_h3m_dataset_by_id(dataset_id, **kwargs):
+    """
+    Get a dataset with configuration specified in params directory.
+
+    See also: `get_h3m_dataset`
+    """
+    import json
+    # path = os.path.join(_root_dir, 'params', '%s.json' % dataset_id)
+    path = os.path.join(_root_dir, 'default_datasets.json')
+    if not os.path.isfile(path):
+        raise IOError('No params file for dataset %s at %s' % dataset_id, path)
+    with open(path, 'r') as f:
+        params = json.load(f)
+    params = params[dataset_id]
+    params.update(**kwargs)
+    return get_h3m_dataset(**params)
+
+
+def register_all():
+    from human_pose_util.serialization import dataset_register
+    from human_pose_util.serialization import register_dataset_id_fn
+    from human_pose_util.serialization import skeleton_register
+    skeleton_register['s24'] = s24
+    skeleton_register['s14'] = s14
+    dataset_register['h3m'] = get_h3m_dataset
+    register_dataset_id_fn(
+        'h3m', os.path.join(_root_dir, 'default_datasets.json'))
 
 
 if __name__ == '__main__':

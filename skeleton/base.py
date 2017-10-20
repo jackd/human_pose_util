@@ -1,4 +1,6 @@
+from __future__ import division
 import numpy as np
+from human_pose_util.transforms import np_impl
 
 
 class Skeleton(object):
@@ -103,42 +105,19 @@ class Skeleton(object):
     def height(self, p3):
         raise NotImplementedError()
 
-    def front_angle(self, p3):
+    def front_angle(self, p3, x_dim=0, y_dim=1):
         raise NotImplementedError()
 
+    def normalize_height(self, p3):
+        """Get the pose scaled by height."""
+        return p3 / np.max(self.height(p3))
 
-class SkeletonConverter(object):
-    def __init__(self, input_skeleton, output_skeleton, oi_map={}):
-        indices = []
-        for i in range(output_skeleton.n_joints):
-            joint = output_skeleton.joint(i)
-            if joint in oi_map:
-                joint = oi_map[joint]
-            indices.append(input_skeleton.joint_index(joint))
-        self._indices = indices
-
-    def convert(self, input_data):
-        return input_data[..., self._indices, :]
-
-    def convert_tf(self, input_data):
-        import tensorflow as tf
-        return tf.gather(input_data, self._indices, axis=-2)
-
-    _identity = None
-
-    @staticmethod
-    def identity():
-        if SkeletonConverter._identity is None:
-            SkeletonConverter._identity = IdentityConverter()
-        return SkeletonConverter._identity
-
-
-class IdentityConverter(SkeletonConverter):
-    def convert(self, input_data):
-        return input_data
-
-    def convert_tf(self, input_data):
-        return input_data
+    def rotate_front(self, p3, axis_order=[0, 1, 2]):
+        """Rotate the given pose(s) to face the front."""
+        angle = self.front_angle(p3, x_dim=axis_order[0], y_dim=axis_order[1])
+        if len(p3.shape) == 3:
+            angle = np.expand_dims(angle, axis=1)
+        return np_impl.rotate_about(p3, -angle, dim=axis_order[2])
 
 
 def skeleton_height(p3, l_foot_index, r_foot_index, head_index):
@@ -146,10 +125,9 @@ def skeleton_height(p3, l_foot_index, r_foot_index, head_index):
     return np.sqrt(np.max(np.sum(displ**2, axis=-1)))
 
 
-def front_angle(points, skeleton, l_joint='l_hip', r_joint='r_hip'):
+def front_angle(
+        points, l_joint_index, r_joint_index, x_dim=0, y_dim=1):
     """Get the angle about the z-axis of the hips."""
     import numpy as np
-    li = skeleton.joint_index(l_joint)
-    ri = skeleton.joint_index(r_joint)
-    diff = points[..., li, :] - points[..., ri, :]
-    return np.arctan2(diff[..., 1], diff[..., 0])
+    diff = points[..., l_joint_index, :] - points[..., r_joint_index, :]
+    return np.arctan2(diff[..., y_dim], diff[..., x_dim])

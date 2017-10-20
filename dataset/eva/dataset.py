@@ -148,11 +148,12 @@ def _s20_to_other_dataset(eva_dataset, converter, target_skeleton_id):
 
     def mapped_example(example):
         return MappedDataset(
-            example, {k: convert for k in ['p3c', 'p3w', 'p2']})
+            example, {k: lambda ex: convert(ex[k])
+                      for k in ['p3c', 'p3w', 'p2']})
 
     return MappedDataset(
         eva_dataset, mapped_example,
-        {'skeleton_id': lambda x: target_skeleton_id})
+        {'skeleton_id': lambda ex: target_skeleton_id})
 
 
 def s20_to_s16_dataset(eva_dataset):

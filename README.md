@@ -99,6 +99,5 @@ See `human_pose_util.dataset.h3m` and `human_pose_util.dataset.eva` for examples
 
 
 ## TODO
-* Implement new serialization interface with `eva`
-* Remove old registration stuff
+* Continue removing all dataset.interface stuff. Mostly there with h3m, but start with dataset.h3m.pose_sequence. It's overly complicated - just map lists of dictionaries (and use hdf5 instead of dicts if memory becomes too intensive - unlikely for just pose stuff, though maybe necessary for images/heatmaps).
 * dataset/mpi_inf/README.md TODOs

@@ -4,7 +4,13 @@
     "pixel_scale": 1000,
     "space_scale": 2048
   },
-  "relevant_scaled_c0": {
+  "relevant-scaled-c0": {
+    "pixel_scale": 1000,
+    "space_scale": 2048,
+    "camera_indices": [0]
+  },
+  "relevant-consistent-scaled-c0": {
+    "consistent": true,
     "pixel_scale": 1000,
     "space_scale": 2048,
     "camera_indices": [0]

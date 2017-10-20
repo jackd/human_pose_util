@@ -119,8 +119,11 @@ class MpiInfSkeleton(Skeleton):
             self.joint_index(r_ankle),
             self.joint_index(head_top))
 
-    def front_angle(self, p3):
-        return front_angle(p3, self)
+    def front_angle(self, p3, x_dim=0, y_dim=1):
+        l_joint_index = self.joint_index(l_hip)
+        r_joint_index = self.joint_index(r_hip)
+        return front_angle(
+            p3, l_joint_index, r_joint_index, x_dim=x_dim, y_dim=y_dim)
 
 
 def skeleton(joint_set_name='relevant', order='o1'):

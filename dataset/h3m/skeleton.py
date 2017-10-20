@@ -28,6 +28,7 @@ r_little = 'r_little'
 
 
 class _S24(Skeleton):
+
     def __init__(self):
         links = (
             (thorax, None),
@@ -72,8 +73,11 @@ class _S24(Skeleton):
             r_foot_index=self.joint_index(r_toes),
             head_index=self.joint_index(head_back))
 
-    def front_angle(self, p3):
-        return front_angle(self, p3, l_joint=l_hip, r_joint=r_hip)
+    def front_angle(self, p3, x_dim=0, y_dim=1):
+        l_joint_index = self.joint_index(l_hip)
+        r_joint_index = self.joint_index(r_hip)
+        return front_angle(
+            p3, l_joint_index, r_joint_index, x_dim=x_dim, y_dim=y_dim)
 
 
 s24 = _S24()

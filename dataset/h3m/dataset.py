@@ -18,6 +18,13 @@ from human_pose_util.transforms.camera_params import calculate_extrinsics
 from human_pose_util.transforms.np_impl import project
 from human_pose_util.transforms.np_impl import transform_frame
 
+print('********************************************************')
+print('********************************************************')
+print('********************DEPRECATED**************************')
+print('**********human_pose_util.dataset.h3m.dataset***********')
+print('Transition to human_pose_util.dataset.h3m.pose_sequence.')
+print('********************************************************')
+print('********************************************************')
 
 _root_node = root_node()
 _root_node.open()
@@ -242,6 +249,8 @@ def get_h3m_dataset(
         cameras: list of indices of cameras to use.
         fps: changes frame rate if specified.
     """
+    # examples = [_root_node[k] for k in _root_node.keys()]
+
     dataset = H3mDataset(train)
     if consistent:
         dataset = consistent(dataset)
@@ -263,33 +272,23 @@ def get_h3m_dataset(
 _root_dir = os.path.realpath(os.path.dirname(__file__))
 
 
-def get_h3m_dataset_by_id(dataset_id, **kwargs):
-    """
-    Get a dataset with configuration specified in params directory.
-
-    See also: `get_h3m_dataset`
-    """
-    import json
-    # path = os.path.join(_root_dir, 'params', '%s.json' % dataset_id)
-    path = os.path.join(_root_dir, 'default_datasets.json')
-    if not os.path.isfile(path):
-        raise IOError('No params file for dataset %s at %s' % dataset_id, path)
-    with open(path, 'r') as f:
-        params = json.load(f)
-    params = params[dataset_id]
-    params.update(**kwargs)
-    return get_h3m_dataset(**params)
-
-
-def register_all():
-    from human_pose_util.serialization import dataset_register
-    from human_pose_util.serialization import register_dataset_id_fn
-    from human_pose_util.serialization import skeleton_register
-    skeleton_register['s24'] = s24
-    skeleton_register['s14'] = s14
-    dataset_register['h3m'] = get_h3m_dataset
-    register_dataset_id_fn(
-        'h3m', os.path.join(_root_dir, 'default_datasets.json'))
+# def get_h3m_dataset_by_id(dataset_id, **kwargs):
+#     """
+#     Get a dataset with configuration specified in params directory.
+#
+#     See also: `get_h3m_dataset`
+#     """
+#     import json
+#     # path = os.path.join(_root_dir, 'params', '%s.json' % dataset_id)
+#     path = os.path.join(_root_dir, 'default_datasets.json')
+#     if not os.path.isfile(path):
+#         raise IOError(
+#             'No params file for dataset %s at %s' % dataset_id, path)
+#     with open(path, 'r') as f:
+#         params = json.load(f)
+#     params = params[dataset_id]
+#     params.update(**kwargs)
+#     return get_h3m_dataset(**params)
 
 
 if __name__ == '__main__':

@@ -54,6 +54,16 @@ class Dataset(object):
         """Get the number of keys in this dataset."""
         return len(self.keys())
 
+    @abstractmethod
+    def map_value(self, key, map_fn):
+        """Map the value of key by the specified map_fn."""
+        raise NotImplementedError('Abstract method')
+
+    def map_values(self, map_fn):
+        """Map all values according to the specified map_fn."""
+        for key in self.keys():
+            self.map_fn(key, map_fn)
+
 
 class DatasetBase(Dataset):
     """Dataset based on maps."""
@@ -186,13 +196,15 @@ class MappedDataset(DelegatingDataset):
         super(MappedDataset, self).__init__(base_dataset)
 
     def __getitem__(self, key):
-        val = self._base_item(key)
+        # val = self._base_item(key)
         if callable(self._child_map_fn):
-            return self._child_map_fn(val)
+            # return self._child_map_fn(val)
+            return self._child_map_fn(self._base_item(key))
         elif key in self._child_map_fn:
-            return self._child_map_fn[key](val)
+            return self._child_map_fn[key](self._base)
         else:
-            return val
+            return self._base_item(key)
+            # return val
 
     @property
     def attrs(self):

@@ -47,8 +47,11 @@ class _S14(Skeleton):
             r_foot_index=self.joint_index(r_ankle),
             head_index=self.joint_index(head))
 
-    def front_angle(self, p3):
-        return front_angle(self, p3, l_joint=l_hip, r_joint=r_hip)
+    def front_angle(self, p3, x_dim=0, y_dim=1):
+        return front_angle(
+            p3,
+            l_joint_index=self.joint_index(l_hip),
+            r_joint_index=self.joint_index(r_hip), x_dim=0, y_dim=1)
 
 
 s14 = _S14()

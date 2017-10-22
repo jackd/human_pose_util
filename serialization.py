@@ -1,8 +1,14 @@
 """Provides functions/classes for ease of parameter serialization."""
-import os
-import json
-# from skeleton import Skeleton
 from skeleton.converters import SkeletonConverter
+
+print('************************')
+print('************************')
+print('************************')
+print('DEPRECATED')
+print('Use human_pose_util.register instead')
+print('************************')
+print('************************')
+print('************************')
 
 
 class ValidatingDict(dict):
@@ -23,6 +29,7 @@ class ValidatingDict(dict):
         return value
 
     def __getitem__(self, key):
+        print(key, list(self.keys()))
         return self._base[key]
 
     def keys(self):
@@ -73,31 +80,41 @@ class FunctionDict(ValidatingDict):
         return self[key](*args, **kwargs)
 
 
-dataset_register = FunctionDict()
-dataset_register_by_id = FunctionDict()
+# dataset_register = FunctionDict()
+# dataset_register_by_id = FunctionDict()
 
 
-def register_dataset_id_fn(dataset_id, params_path):
-    """
-    Registers a corresponding function in dataset_register_by_id.
+# def register_dataset_id_fn(dataset_id, params_path):
+#     """
+#     Registers a corresponding function in dataset_register_by_id.
+#
+#     Assumes params_path is a json file containing a dict mapping keys to
+#     kwarg dicts, and that a base function has been registered with
+#     `dataset_id` in `dataset_register`.
+#     """
+#     if not os.path.isfile(params_path):
+#         raise IOError(
+#             'No params file for dataset %s at %s' % dataset_id, params_path)
+#
+#     with open(params_path, 'r') as f:
+#         params = json.load(f)
+#
+#     def get_dataset_by_id(key, **kwargs):
+#         p = params[dataset_id].copy()
+#         p.update(**kwargs)
+#         return dataset_register[key](**p)
+#
+#     dataset_register_by_id[dataset_id] = get_dataset_by_id
 
-    Assumes params_path is a json file containing a dict mapping keys to
-    kwarg dicts, and that a base function has been registered with
-    `dataset_id` in `dataset_register`.
-    """
-    if not os.path.isfile(params_path):
-        raise IOError(
-            'No params file for dataset %s at %s' % dataset_id, params_path)
 
-    with open(params_path, 'r') as f:
-        params = json.load(f)
+def _dataset_validator(register, key, value):
+    if key in register:
+        raise KeyError('key already exists in dataset register: %s' % key)
+    if not isinstance(key, (str, unicode)):
+        raise KeyError('key must be string/unicode, got %s' % key)
 
-    def get_dataset_by_id(key, **kwargs):
-        p = params[dataset_id].copy()
-        p.update(**kwargs)
-        return dataset_register[key](**p)
 
-    dataset_register_by_id[dataset_id] = get_dataset_by_id
+dataset_register = ValidatingDict(_dataset_validator)
 
 
 def _skeleton_registration_validator(register, key, value):
@@ -150,12 +167,8 @@ def register_skeletons(h3m=False, eva=False, mpi_inf=False):
 def register_datasets(h3m=False, eva=False, mpi_inf=False):
     register_skeletons(h3m=h3m, eva=eva, mpi_inf=mpi_inf)
     if h3m:
-        # from dataset.h3m.dataset import get_h3m_dataset, _root_dir
-        # from dataset.h3m.dataset import _root_dir
-        from dataset.h3m.pose_sequence import get_pose_data, _root_dir
-        dataset_register['h3m'] = get_pose_data
-        register_dataset_id_fn(
-            'h3m', os.path.join(_root_dir, 'default_datasets.json'))
+        from dataset.h3m.dataset import dataset
+        dataset_register['h3m'] = dataset
     if eva:
         raise NotImplementedError()
     if mpi_inf:
@@ -173,7 +186,22 @@ def register_converters(h3m_eva=False):
         #     s24, s16, _oi_map)  #  s24 has no no pelvis :(
 
 
+def get_skeleton_register():
+    return skeleton_register
+
+
 if __name__ == '__main__':
+    from dataset.normalize import normalized_view_data, normalized_p3w
     register_skeletons(h3m=True, eva=True, mpi_inf=True)
     register_datasets(h3m=True)
     register_converters(h3m_eva=True)
+    print('Registration successful!')
+
+    dataset = dataset_register['h3m']
+    for mode in ['train', 'eval']:
+        print('Getting normalized_view_data...')
+        normalized_view_data(dataset, modes=mode)
+
+        print('Getting normalized_p3w...')
+        print(skeleton_register.keys())
+        normalized_p3w(dataset, modes=mode)

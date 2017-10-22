@@ -1,12 +1,13 @@
 from __future__ import division
 import numpy as np
-from human_pose_util.serialization import skeleton_register, converter_register
+from human_pose_util.register import get_skeleton, get_converter
 from human_pose_util.transforms import np_impl
+from group import copy_group, filter_children, mapped_group, KeySubsetGroup
 
 
 def normalized_poses(p3, skeleton_id, rotate_front=False, recenter_xy=False):
     """Get a normalized version of p3. Does not change p3."""
-    skeleton = skeleton_register[skeleton_id]
+    skeleton = get_skeleton(skeleton_id)
     if rotate_front:
         p3 = skeleton.rotate_front(p3)
     if recenter_xy:
@@ -38,78 +39,113 @@ def apply_pixel_scale(example, pixel_scale, div_keys=['p2', 'f', 'c']):
         example['pixel_scale'] = pixel_scale
 
 
-def apply_consistent_pose(example):
-    p3w, r, t = (example[k] for k in ['p3w', 'r', 't'])
-    example['p3c'] = np_impl.transform_frame(p3w, r=r, t=t)
+def apply_consistent_pose(sequence):
+    p3w = sequence['p3w']
+    r, t = (sequence.attrs[k] for k in ['r', 't'])
+    sequence['p3c'] = np_impl.transform_frame(p3w, r=r, t=t)
 
 
-def apply_consistent_projection(example):
-    p3c, f, c = (example[k] for k in ['p3c', 'f', 'c'])
-    example['p2'] = np_impl.project(p3c, f=f, c=c)
+def apply_consistent_projection(sequence):
+    p3c = sequence['p3c']
+    f, c = (sequence.attrs[k] for k in ['f', 'c'])
+    sequence['p2'] = np_impl.project(p3c, f=f, c=c)
 
 
-def apply_fps_change(example, target_fps, seq_keys=['p3c', 'p3w', 'p2']):
-    if 'fps' not in example:
+def apply_fps_change(sequence, target_fps, seq_keys=['p3c', 'p3w', 'p2']):
+    if 'fps' not in sequence.attrs:
         raise KeyError('fps must be in example to change fps.')
-    actual_fps = example['fps']
+    actual_fps = sequence.attrs['fps']
     if actual_fps % target_fps != 0:
         raise ValueError('actual_fps must be divisible by target_fps')
     take_every = actual_fps // target_fps
     for k in seq_keys:
-        if k in example:
-            example[k] = example[k][::take_every]
+        sequence[k] = sequence[k][::take_every]
 
 
 def apply_skeleton_conversion(
-        example, target_skeleton_id, pose_keys=['p3c', 'p3w', 'p2']):
-    skeleton_id = example['skeleton_id']
+        dataset, target_skeleton_id, pose_keys=['p3c', 'p3w', 'p2']):
+    skeleton_id = dataset.attrs['skeleton_id']
     if skeleton_id == target_skeleton_id:
         return
-    converter = converter_register[(skeleton_id, target_skeleton_id)]
-    for key in pose_keys:
-        if key in example:
-            example[key] = converter.convert(example[key])
-    example['skeleton_id'] = target_skeleton_id
+    converter = get_converter(skeleton_id, target_skeleton_id)
+    for sequence in dataset.values():
+        for key in pose_keys:
+            if key in sequence:
+                sequence[key] = converter.convert(sequence[key])
+    dataset.attrs['skeleton_id'] = target_skeleton_id
 
 
-def _get_heights(examples, skeleton):
+def _get_heights(sequences, skeleton):
     p3s = {}
-    for example in examples:
-        s = example['subject_id']
+    for sequence in sequences:
+        s = sequence.attrs['subject_id']
         if s not in p3s:
             p3s[s] = []
-        p3s[s].append(example['p3w'])
+        p3s[s].append(sequence['p3w'])
     heights = {k: np.max(skeleton.height(np.concatenate(v, axis=0)))
                for k, v in p3s.items()}
     return heights
 
 
-def filter_sequences(
-        sequences, subject_ids=None, sequence_ids=None, camera_ids=None):
+def _str_as_list(x):
+    if isinstance(x, (str, unicode)):
+        return [x]
+    elif hasattr(x, '__iter__'):
+        return x
+    else:
+        raise ValueError('x must be str, unicode or iterable')
+
+
+def filtered_view(
+        dataset, modes=None, camera_idxs=None, subject_ids=None,
+        sequence_ids=None, keys=None):
     """
-    Filter an iterable of sequences.
+    Filter a group of sequences.
 
     Example usage:
-        filter_sequences(sequences, subject_ids=['S1'], camera_ids=[1])
+        filter_sequences(dataset, subject_ids=['S1'], camera_ids=[1])
         will return sequences with subject_id 'S1' and camera_id 1
     """
     conds = []
+
+    def attr_cond(key, values):
+        values = _str_as_list(values)
+
+        def cond(s):
+            return s.attrs[key] in values
+
+        return cond
+
     if subject_ids is not None:
-        conds.append(lambda x: x['subject_id'] in subject_ids)
+        conds.append(attr_cond('subject_id', subject_ids))
     if sequence_ids is not None:
-        conds.append(lambda x: x['sequence_id'] in sequence_ids)
-    if camera_ids is not None:
-        conds.append(lambda x: x['camera_id'] in camera_ids)
-    return [s for s in sequences if all([c(s) for c in conds])]
+        conds.append(attr_cond('sequence_id', sequence_ids))
+    if camera_idxs is not None:
+        camera_idxs = _str_as_list(camera_idxs)
+        camera_ids = list(
+            set([s.attrs['camera_id'] for k, s in dataset.items()]))
+        camera_ids.sort()
+        camera_ids = [camera_ids[i] for i in camera_idxs]
+        conds.append(attr_cond('camera_id', camera_ids))
+    if modes is not None:
+        modes = _str_as_list(modes)
+        conds.append(lambda x: x.attrs['mode'] in modes)
+    if len(conds) > 0:
+        dataset = filter_children(
+            dataset, lambda k, v: all([cond(v) for cond in conds]))
+    if keys is not None:
+        dataset = mapped_group(dataset, lambda s: KeySubsetGroup(s, keys))
+
+    return dataset
 
 
-def normalize_sequences(
-        sequences,
+def normalize_dataset(
+        dataset,
         consistent_pose=False, consistent_projection=False,
         scale_to_height=False, space_scale=1, pixel_scale=1, fps=None,
         target_skeleton_id=None, heights=None):
     """
-    Modify data in sequences.
+    Modify data in a dataset.
 
     If `scale_to_height` is True, applies space_scale after scaling to height,
     i.e. if `space_scale = 5` and the subject height is 1.5, this is equivalent
@@ -133,21 +169,22 @@ def normalize_sequences(
 
     Modifies sequences in place.
     """
-    if scale_to_height and heights is None:
-        skeleton_id = sequences[0]['skeleton_id']
-        if not all([seq['skeleton_id'] == skeleton_id for seq in sequences]):
-            raise NotImplementedError()
-        skeleton = skeleton_register[skeleton_id]
-        heights = _get_heights(sequences, skeleton)
+    if target_skeleton_id is not None:
+        apply_skeleton_conversion(dataset, target_skeleton_id)
 
-    for sequence in sequences:
+    skeleton_id = dataset.attrs['skeleton_id']
+    if scale_to_height and heights is None:
+        skeleton = get_skeleton(skeleton_id)
+        heights = _get_heights(dataset.values(), skeleton)
+
+    for sequence in dataset.values():
         if consistent_pose:
             apply_consistent_pose(sequence)
         if consistent_projection:
             apply_consistent_projection(sequence)
         if scale_to_height:
             apply_space_scale(
-                sequence, heights[sequence['subject_id']]*space_scale)
+                sequence, heights[sequence.attrs['subject_id']]*space_scale)
         elif space_scale > 1:
             apply_space_scale(sequence, space_scale)
 
@@ -157,7 +194,122 @@ def normalize_sequences(
         if fps is not None:
             apply_fps_change(sequence, fps)
 
-        if target_skeleton_id is not None:
-            apply_skeleton_conversion(sequence, target_skeleton_id)
+    return dataset
 
-    return sequences
+
+# def filtered_view(dataset, modes=None, camera_idxs=None, keys=None):
+#     """
+#     Get a view into the dataset containing filtered data.
+#
+#     Args:
+#         modes: iterable of strings
+#         camera_idxs: indices of camera_ids (sorted) to be included. Includes
+#             all if None
+#         keys: keys for which data is returned for each sequence.
+#
+#     Returns a view into the original dataset exposing only the specified data
+#     for the specified sequences.
+#     """
+#     if modes is not None:
+#         if isinstance(modes, (str, unicode)):
+#             modes = [modes]
+#         dataset = filter_children(
+#             dataset, lambda k, v: v.attrs['mode'] in modes)
+#     if camera_idxs is not None:
+#         camera_ids = list(
+#             set([s.attrs['camera_id'] for k, s in dataset.items()]))
+#         camera_ids.sort()
+#         camera_ids = [camera_ids[i] for i in camera_idxs]
+#         dataset = filter_children(
+#             dataset, lambda k, v: v.attrs['camera_id'] in camera_ids)
+#     if keys is not None:
+#         dataset = mapped_group(dataset, lambda s: KeySubsetGroup(s, keys))
+#     return dataset
+
+
+def dataset_to_p3w(
+        dataset, skeleton_id=None, rotate_front=False,
+        recenter_xy=False):
+    p3 = np.concatenate([s['p3w'] for s in dataset.values()], axis=0)
+    if rotate_front or recenter_xy:
+        if skeleton_id is None:
+            raise ValueError(
+                'skeleton_id must be specified if transform applied')
+        p3 = normalized_poses(p3, skeleton_id, rotate_front, recenter_xy)
+    return p3
+
+
+def dataset_to_view_data(dataset):
+    """Get p2, r, t, f, c, p3w from the given dataset."""
+    p3w = np.concatenate([s['p3w'] for s in dataset.values()], axis=0)
+    p2 = np.concatenate([s['p2'] for s in dataset.values()], axis=0)
+    r, t, f, c = [np.concatenate(
+        [[s.attrs[k] for i in range(s.attrs['n_frames'])]
+         for s in dataset.values()])
+        for k in ['r', 't', 'f', 'c']]
+    return p2, r, t, f, c, p3w
+
+
+def normalized_p3w(
+        dataset, modes=None, camera_idxs=None, scale_to_height=True,
+        fps=None, target_skeleton_id=None, space_scale=1, rotate_front=True,
+        recenter_xy=True):
+    """
+    Get normalized p3w data from the given dataset.
+
+    Args:
+        dataset: base dataset. Will not be changed.
+        modes:
+        camera_idxs:
+        scale_to_height: if True will scale all p3w values to height of subject
+        fps: target frames per second.
+        target_skeleton_id: skeleton_id to use. Must be register_eva_defaults.
+        space_scale: value to scale spatial values by. If scale_to_height, the
+            effects are combined.
+
+    Returns:
+        modified_dataset
+        p3w, np.ndarray of shape (n_examples, n_joints, 3).
+    """
+    dataset = copy_group(filtered_view(
+        dataset, modes=modes, camera_idxs=camera_idxs, keys=['p3w']))
+    normalize_dataset(
+            dataset, scale_to_height=scale_to_height, space_scale=space_scale,
+            target_skeleton_id=target_skeleton_id)
+    skeleton_id = dataset.attrs['skeleton_id']
+    return dataset, dataset_to_p3w(
+        dataset, skeleton_id=skeleton_id, rotate_front=rotate_front,
+        recenter_xy=recenter_xy)
+
+
+def normalized_view_data(
+        dataset, modes=None, camera_idxs=None, keys=None,
+        target_skeleton_id=None,
+        pixel_scale=1000, space_scale=1000, consistent_pose=True,
+        consistent_projection=True, fps=None):
+    """
+    Get normalized data relevant to view/camera.
+
+    Args:
+        dataset: filtered dataset. Will not be changed.
+        target_skeleton_id:
+        pixel_scale: value to scale pixel values by
+        space_scale: value to scale
+
+    Returns:
+        modified_dataset_attrs
+        tuple: p2, r, t, f, c, p3w
+    """
+    keys = ['p3w']
+    if not consistent_pose:
+        keys.append('p3c')
+    if not consistent_projection:
+        keys.append('p2')
+    dataset = copy_group(filtered_view(
+        dataset, modes=modes, camera_idxs=camera_idxs, keys=['p3w']))
+    normalize_dataset(
+        dataset, space_scale=space_scale, pixel_scale=pixel_scale,
+        consistent_pose=consistent_pose,
+        consistent_projection=consistent_projection,
+        fps=fps, target_skeleton_id=target_skeleton_id)
+    return dataset, dataset_to_view_data(dataset)

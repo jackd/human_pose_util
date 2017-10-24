@@ -1,5 +1,9 @@
+import json
 import numpy as np
-from human_pose_util.register import dataset_register
+from human_pose_util.register import get_dataset
+from human_pose_util.dataset.normalize import normalize_dataset
+from human_pose_util.dataset.normalize import filter_dataset
+from human_pose_util.dataset.group import copy_group
 
 
 class ReportManager(object):
@@ -11,28 +15,34 @@ class ReportManager(object):
         self._summarize_fn = summarize_fn
         self._key = key
 
-    def category(self, example):
-        return self._category_fn(example)
+    def category(self, sequence):
+        return self._category_fn(sequence)
 
-    def summarize(self, example, result, dataset_attrs):
-        return self._summarize_fn(example, result, dataset_attrs)
+    def summarize(self, sequence, result):
+        return self._summarize_fn(sequence, result)
 
     @property
     def key(self):
         return self._key
 
     def report(self, results, overwrite=False):
-        dataset = dataset_register[results.attrs['dataset']]['eval']
-        dataset_attrs = dataset.attrs
+        with open(results.attrs['params_path'], 'r') as f:
+            params = json.load(f)
+        dataset = get_dataset(params['dataset']['type'])
+        dataset = filter_dataset(
+            dataset, modes=['eval'], **params['dataset']['filter_kwargs'])
+        dataset = copy_group(dataset)
+        dataset = normalize_dataset(
+            dataset, **params['dataset']['normalize_kwargs'])
         summaries = {}
-        for k, example in dataset.items():
-            result = results[k]
-            cat = self.category(example)
+        for k, result in results.items():
+            sequence = dataset[k]
+            cat = self.category(sequence)
             if self.key in result and not overwrite:
                 summary = result[self.key]
             else:
                 print('Generating %s: %s' % (self.key, k))
-                summary = self.summarize(example, result, dataset_attrs)
+                summary = self.summarize(sequence, result)
                 if hasattr(result, 'create_dataset'):
                     if self.key in result:
                         assert(overwrite)
@@ -53,14 +63,14 @@ class ReportManager(object):
         print('Total: %.2f' % summary)
 
 
-def proc_summary(example, result, dataset_attrs):
+def proc_summary(sequence, result):
     from human_pose_util.evaluate import procrustes_error
-    err = procrustes_error(example['p3w'], result['p3w'])
-    return err * dataset_attrs['space_scale']
+    err = procrustes_error(sequence['p3w'], sequence['p3w'])
+    return err * sequence.attrs['space_scale']
 
 
-def sequence_proc_summary(example, result, dataset_attrs):
+def sequence_proc_summary(sequence, result):
     from human_pose_util.evaluate import sequence_procrustes_error
     err = sequence_procrustes_error(
-        np.array(example['p3w']), np.array(result['p3w']))
-    return err * dataset_attrs['space_scale']
+        np.array(sequence['p3w']), np.array(result['p3w']))
+    return err * sequence.attrs['space_scale']

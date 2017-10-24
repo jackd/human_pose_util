@@ -18,25 +18,25 @@ def normalized_poses(p3, skeleton_id, rotate_front=False, recenter_xy=False):
 
 
 def apply_space_scale(
-        example, space_scale, div_keys=['p3w', 'p3c', 't']):
+        sequence, space_scale, div_keys=['p3w', 'p3c', 't']):
     """Apply space rescaling."""
     for k in div_keys:
-        if k in example:
-            example[k] = example[k] / space_scale
-    if 'space_scale' in example:
-        example['space_scale'] *= space_scale
+        if k in sequence:
+            sequence[k] = sequence[k] / space_scale
+    if 'space_scale' in sequence:
+        sequence.attrs['space_scale'] *= space_scale
     else:
-        example['space_scale'] = space_scale
+        sequence.attrs['space_scale'] = space_scale
 
 
-def apply_pixel_scale(example, pixel_scale, div_keys=['p2', 'f', 'c']):
+def apply_pixel_scale(sequence, pixel_scale, div_keys=['p2', 'f', 'c']):
     for k in div_keys:
-        if k in example:
-            example[k] = example[k] / pixel_scale
-    if 'pixel_scale' in example:
-        example['pixel_scale'] *= pixel_scale
+        if k in sequence:
+            sequence[k] = sequence[k] / pixel_scale
+    if 'pixel_scale' in sequence:
+        sequence.attrs['pixel_scale'] *= pixel_scale
     else:
-        example['pixel_scale'] = pixel_scale
+        sequence.attrs['pixel_scale'] = pixel_scale
 
 
 def apply_consistent_pose(sequence):
@@ -63,16 +63,16 @@ def apply_fps_change(sequence, target_fps, seq_keys=['p3c', 'p3w', 'p2']):
 
 
 def apply_skeleton_conversion(
-        dataset, target_skeleton_id, pose_keys=['p3c', 'p3w', 'p2']):
-    skeleton_id = dataset.attrs['skeleton_id']
-    if skeleton_id == target_skeleton_id:
+        dataset, skeleton_id, pose_keys=['p3c', 'p3w', 'p2']):
+    original_skeleton_id = dataset.attrs['skeleton_id']
+    if original_skeleton_id == skeleton_id:
         return
-    converter = get_converter(skeleton_id, target_skeleton_id)
+    converter = get_converter(original_skeleton_id, skeleton_id)
     for sequence in dataset.values():
         for key in pose_keys:
             if key in sequence:
                 sequence[key] = converter.convert(sequence[key])
-    dataset.attrs['skeleton_id'] = target_skeleton_id
+    dataset.attrs['skeleton_id'] = skeleton_id
 
 
 def _get_heights(sequences, skeleton):
@@ -96,7 +96,7 @@ def _str_as_list(x):
         raise ValueError('x must be str, unicode or iterable')
 
 
-def filtered_view(
+def filter_dataset(
         dataset, modes=None, camera_idxs=None, subject_ids=None,
         sequence_ids=None, keys=None):
     """
@@ -143,7 +143,7 @@ def normalize_dataset(
         dataset,
         consistent_pose=False, consistent_projection=False,
         scale_to_height=False, space_scale=1, pixel_scale=1, fps=None,
-        target_skeleton_id=None, heights=None):
+        skeleton_id=None, heights=None):
     """
     Modify data in a dataset.
 
@@ -167,10 +167,15 @@ def normalize_dataset(
         pixel_scale (optional)
         skeleton_id (needed if `target_skeleton_id is not None`)
 
+    Args:
+        ...
+        heights: optional dict of subject_id -> heights. Computed if not
+            supplied
+
     Modifies sequences in place.
     """
-    if target_skeleton_id is not None:
-        apply_skeleton_conversion(dataset, target_skeleton_id)
+    if skeleton_id is not None:
+        apply_skeleton_conversion(dataset, skeleton_id)
 
     skeleton_id = dataset.attrs['skeleton_id']
     if scale_to_height and heights is None:
@@ -197,7 +202,7 @@ def normalize_dataset(
     return dataset
 
 
-# def filtered_view(dataset, modes=None, camera_idxs=None, keys=None):
+# def filter_dataset(dataset, modes=None, camera_idxs=None, keys=None):
 #     """
 #     Get a view into the dataset containing filtered data.
 #
@@ -228,13 +233,10 @@ def normalize_dataset(
 
 
 def dataset_to_p3w(
-        dataset, skeleton_id=None, rotate_front=False,
-        recenter_xy=False):
+        dataset, rotate_front=False, recenter_xy=False):
     p3 = np.concatenate([s['p3w'] for s in dataset.values()], axis=0)
     if rotate_front or recenter_xy:
-        if skeleton_id is None:
-            raise ValueError(
-                'skeleton_id must be specified if transform applied')
+        skeleton_id = dataset.attrs['skeleton_id']
         p3 = normalized_poses(p3, skeleton_id, rotate_front, recenter_xy)
     return p3
 
@@ -252,7 +254,7 @@ def dataset_to_view_data(dataset):
 
 def normalized_p3w(
         dataset, modes=None, camera_idxs=None, scale_to_height=True,
-        fps=None, target_skeleton_id=None, space_scale=1, rotate_front=True,
+        fps=None, skeleton_id=None, space_scale=1, rotate_front=True,
         recenter_xy=True):
     """
     Get normalized p3w data from the given dataset.
@@ -263,7 +265,7 @@ def normalized_p3w(
         camera_idxs:
         scale_to_height: if True will scale all p3w values to height of subject
         fps: target frames per second.
-        target_skeleton_id: skeleton_id to use. Must be register_eva_defaults.
+        skeleton_id: skeleton_id to use. Must be registered.
         space_scale: value to scale spatial values by. If scale_to_height, the
             effects are combined.
 
@@ -271,20 +273,19 @@ def normalized_p3w(
         modified_dataset
         p3w, np.ndarray of shape (n_examples, n_joints, 3).
     """
-    dataset = copy_group(filtered_view(
+    dataset = copy_group(filter_dataset(
         dataset, modes=modes, camera_idxs=camera_idxs, keys=['p3w']))
     normalize_dataset(
             dataset, scale_to_height=scale_to_height, space_scale=space_scale,
-            target_skeleton_id=target_skeleton_id)
+            skeleton_id=skeleton_id)
     skeleton_id = dataset.attrs['skeleton_id']
     return dataset, dataset_to_p3w(
-        dataset, skeleton_id=skeleton_id, rotate_front=rotate_front,
-        recenter_xy=recenter_xy)
+        dataset, rotate_front=rotate_front, recenter_xy=recenter_xy)
 
 
 def normalized_view_data(
         dataset, modes=None, camera_idxs=None, keys=None,
-        target_skeleton_id=None,
+        skeleton_id=None,
         pixel_scale=1000, space_scale=1000, consistent_pose=True,
         consistent_projection=True, fps=None):
     """
@@ -292,7 +293,7 @@ def normalized_view_data(
 
     Args:
         dataset: filtered dataset. Will not be changed.
-        target_skeleton_id:
+        skeleton_id:
         pixel_scale: value to scale pixel values by
         space_scale: value to scale
 
@@ -305,11 +306,11 @@ def normalized_view_data(
         keys.append('p3c')
     if not consistent_projection:
         keys.append('p2')
-    dataset = copy_group(filtered_view(
+    dataset = copy_group(filter_dataset(
         dataset, modes=modes, camera_idxs=camera_idxs, keys=['p3w']))
     normalize_dataset(
         dataset, space_scale=space_scale, pixel_scale=pixel_scale,
         consistent_pose=consistent_pose,
         consistent_projection=consistent_projection,
-        fps=fps, target_skeleton_id=target_skeleton_id)
+        fps=fps, skeleton_id=skeleton_id)
     return dataset, dataset_to_view_data(dataset)

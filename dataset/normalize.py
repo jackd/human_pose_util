@@ -18,21 +18,28 @@ def normalized_poses(p3, skeleton_id, rotate_front=False, recenter_xy=False):
 
 
 def apply_space_scale(
-        sequence, space_scale, div_keys=['p3w', 'p3c', 't']):
+        sequence, space_scale, div_keys=['p3w', 'p3c'], div_attr_keys=['t']):
     """Apply space rescaling."""
     for k in div_keys:
         if k in sequence:
             sequence[k] = sequence[k] / space_scale
+    for k in div_attr_keys:
+        if k in sequence.attrs:
+            sequence.attrs[k] = sequence.attrs[k] / space_scale
     if 'space_scale' in sequence:
         sequence.attrs['space_scale'] *= space_scale
     else:
         sequence.attrs['space_scale'] = space_scale
 
 
-def apply_pixel_scale(sequence, pixel_scale, div_keys=['p2', 'f', 'c']):
+def apply_pixel_scale(
+        sequence, pixel_scale, div_keys=['p2'], div_attr_keys=['f', 'c']):
     for k in div_keys:
         if k in sequence:
             sequence[k] = sequence[k] / pixel_scale
+    for k in div_attr_keys:
+        if k in sequence.attrs:
+            sequence.attrs[k] = sequence.attrs[k] / pixel_scale
     if 'pixel_scale' in sequence:
         sequence.attrs['pixel_scale'] *= pixel_scale
     else:
@@ -60,6 +67,7 @@ def apply_fps_change(sequence, target_fps, seq_keys=['p3c', 'p3w', 'p2']):
     take_every = actual_fps // target_fps
     for k in seq_keys:
         sequence[k] = sequence[k][::take_every]
+    sequence.attrs['fps'] = target_fps
 
 
 def apply_skeleton_conversion(

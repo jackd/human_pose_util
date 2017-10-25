@@ -65,7 +65,8 @@ class ReportManager(object):
 
 def proc_summary(sequence, result):
     from human_pose_util.evaluate import procrustes_error
-    err = procrustes_error(sequence['p3w'], sequence['p3w'])
+    err = procrustes_error(
+        np.array(sequence['p3w']), np.array(sequence['p3w']))
     return err * sequence.attrs['space_scale']
 
 

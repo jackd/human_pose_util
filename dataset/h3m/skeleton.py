@@ -81,3 +81,37 @@ class _S24(Skeleton):
 
 
 s24 = _S24()
+
+
+_original_limb_indices = {
+    thorax: 12,
+    r_hip: 1,
+    r_knee: 2,
+    r_ankle: 3,
+    r_ball: 4,
+    r_toes: 5,
+    l_hip: 6,
+    l_knee: 7,
+    l_ankle: 8,
+    l_ball: 9,
+    l_toes: 10,
+    neck_base: 13,
+    head_center: 14,
+    head_back: 15,
+    l_shoulder: 17,
+    l_elbow: 18,
+    l_wrist: 19,
+    l_thumb: 21,
+    l_little: 22,
+    r_shoulder: 25,
+    r_elbow: 26,
+    r_wrist: 27,
+    r_thumb: 29,
+    r_little: 30,
+}
+
+
+def original_limb_indices():
+    """Get a list of indices for transforming from original limb indices."""
+    return [
+        _original_limb_indices[joint] for joint in s24.joints]

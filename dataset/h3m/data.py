@@ -65,7 +65,7 @@ def has_hdf5_data():
 def convert():
     from spacepy import pycdf
     import imageio
-    from h3m.skeleton import original_limb_indices
+    from skeleton import original_limb_indices
     print('Converting h3m data from cdf to hdf5')
     dataset_dir = get_dataset_dir()
 

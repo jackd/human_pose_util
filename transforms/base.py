@@ -101,7 +101,7 @@ class Transform(object):
         pass
 
     @abstractmethod
-    def reduce_sum(self, x, axis=None, keep_dims=False):
+    def reduce_sum(self, x, axis=None, keepdims=False):
         pass
 
     def matmul(self, A, B, transpose_a=False, transpose_b=False):

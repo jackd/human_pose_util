@@ -48,8 +48,8 @@ class _TransformTf(Transform):
     def split(self, value, num_or_size_splits, axis=0, name='split'):
         return tf.split(value, num_or_size_splits, axis=axis, name=name)
 
-    def reduce_sum(self, x, axis=None, keep_dims=False):
-        return tf.reduce_sum(x, axis=axis, keep_dims=keep_dims)
+    def reduce_sum(self, x, axis=None, keepdims=False):
+        return tf.reduce_sum(x, axis=axis, keepdims=keepdims)
 
     def transpose(self, tensor, perm):
         return tf.transpose(tensor, perm)

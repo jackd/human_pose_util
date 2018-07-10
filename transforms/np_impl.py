@@ -54,8 +54,8 @@ class _TransformNp(Transform):
             num_or_indices = num_or_size_splits
         return np.split(value, num_or_indices, axis=axis)
 
-    def reduce_sum(self, x, axis=None, keep_dims=False):
-        return np.sum(x, axis=axis, keepdims=keep_dims)
+    def reduce_sum(self, x, axis=None, keepdims=False):
+        return np.sum(x, axis=axis, keepdims=keepdims)
 
     def matmul(self, A, B, transpose_a=False, transpose_b=False):
         return np.matmul(A.T if transpose_a else A, B.T if transpose_b else B)

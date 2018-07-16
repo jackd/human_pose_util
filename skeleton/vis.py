@@ -61,6 +61,31 @@ def _plot_kwargs(child_id, constant_kwargs, kwargs_fn=None):
     return kwargs
 
 
+def get_limb_data(skeleton, points):
+    for child in range(skeleton.n_joints):
+        parent = skeleton.parent_index(child)
+        if parent is not None:
+            data = points[[child, parent]]
+            yield data, child
+
+
+def get_lines2d(ax, skeleton, points, kwargs_fn=None, **constant_kwargs):
+    lines = []
+    for data, child in get_limb_data(skeleton, points):
+        kwargs = _plot_kwargs(
+            skeleton.joint(child), constant_kwargs, kwargs_fn)
+        line = ax.plot(data[:, 0], data[:, 1], **kwargs)
+        lines.append(line)
+
+    return lines
+
+
+def update_lines2d(skeleton, lines, points):
+    for line, (data, child) in zip(lines, get_limb_data(skeleton, points)):
+        line.set_xdata(data[:, 0])
+        line.set_ydata(data[:, 1])
+
+
 def vis2d(skeleton, points, ax=None, change_ax=True, kwargs_fn=None,
           **constant_kwargs):
     """Visualize 2D skeleton data using matplotlib.pyplot."""
@@ -71,14 +96,26 @@ def vis2d(skeleton, points, ax=None, change_ax=True, kwargs_fn=None,
     if change_ax:
         # ax.invert_yaxis()
         ax.set_aspect('equal', 'datalim')
-    for child in range(skeleton.n_joints):
-        parent = skeleton.parent_index(child)
-        if parent is not None:
-            xy = points[[child, parent]]
-            kwargs = _plot_kwargs(
-                skeleton.joint(child), constant_kwargs, kwargs_fn)
-            ax.plot(xy[:, 0], xy[:, 1], **kwargs)
+    get_lines2d(ax, skeleton, points, kwargs_fn=kwargs_fn, **constant_kwargs)
     return ax
+
+
+def get_lines3d(ax, skeleton, points, kwargs_fn=None, **constant_kwargs):
+    lines = []
+    for data, child in get_limb_data(skeleton, points):
+        kwargs = _plot_kwargs(
+            skeleton.joint(child), constant_kwargs, kwargs_fn)
+        line, = ax.plot(data[:, 0], data[:, 1], zs=data[:, 2], **kwargs)
+        lines.append(line)
+
+    return lines
+
+
+def update_lines3d(skeleton, lines, points):
+    for line, (data, child) in zip(lines, get_limb_data(skeleton, points)):
+        line.set_xdata(data[:, 0])
+        line.set_ydata(data[:, 1])
+        line.set_ydata(data[:, 2])
 
 
 def vis3d(skeleton, points, ax=None, change_ax=True, kwargs_fn=None,
@@ -89,21 +126,30 @@ def vis3d(skeleton, points, ax=None, change_ax=True, kwargs_fn=None,
         raise ValueError('Expected points of shape %s, got %s'
                          % ((skeleton.n_joints, 3), points.shape))
 
-    x = points[:, 0]
-    y = points[:, 1]
-    z = points[:, 2]
-    if ax is None:
-        ax = default_ax3d()
-
+    # x = points[:, 0]
+    # y = points[:, 1]
+    # z = points[:, 2]
+    # if ax is None:
+    #     ax = default_ax3d()
+    #
+    # if change_ax:
+    #     rescale_ax3d(ax, x, y, z)
+    #
+    # for child in range(skeleton.n_joints):
+    #     parent = skeleton.parent_index(child)
+    #     if parent is not None:
+    #         kwargs = _plot_kwargs(
+    #             skeleton.joint(child), constant_kwargs, kwargs_fn)
+    #         ax.plot(
+    #             x[[child, parent]], y[[child, parent]],
+    #             zs=z[[child, parent]], **kwargs)
+    # return ax
+    if points.shape != (skeleton.n_joints, 3):
+        raise ValueError('Expected points of shape %s, got %s'
+                         % ((skeleton.n_joints, 3), points.shape))
+    ax = ax or default_ax3d()
     if change_ax:
-        rescale_ax3d(ax, x, y, z)
-
-    for child in range(skeleton.n_joints):
-        parent = skeleton.parent_index(child)
-        if parent is not None:
-            kwargs = _plot_kwargs(
-                skeleton.joint(child), constant_kwargs, kwargs_fn)
-            ax.plot(
-                x[[child, parent]], y[[child, parent]], zs=z[[child, parent]],
-                **kwargs)
+        # ax.invert_yaxis()
+        ax.set_aspect('equal', 'datalim')
+    get_lines3d(ax, skeleton, points, kwargs_fn=kwargs_fn, **constant_kwargs)
     return ax

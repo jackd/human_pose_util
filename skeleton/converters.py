@@ -10,6 +10,10 @@ class SkeletonConverter(object):
         self.input_skeleton = input_skeleton
         self.output_skeleton = output_skeleton
 
+    @property
+    def indices(self):
+        return tuple(self._indices)
+
     def convert(self, input_data):
         return input_data[..., self._indices, :]
 

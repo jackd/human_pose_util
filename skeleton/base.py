@@ -1,6 +1,6 @@
 from __future__ import division
 import numpy as np
-from human_pose_util.transforms import np_impl
+from human_pose_util.transforms.np_impl import np_impl
 
 
 class Skeleton(object):
@@ -87,7 +87,7 @@ class Skeleton(object):
 
     def symmetric_index(self, joint_index):
         """Index version of 'symmetric_id'."""
-        return self.joint_index(self.symmetric_id(self.joint_id(joint_index)))
+        return self.joint_index(self.symmetric_id(self.joint(joint_index)))
 
     def symmetric_indices(self):
         """Get all symmetric indices for this skeleton."""

@@ -61,17 +61,19 @@ def _plot_kwargs(child_id, constant_kwargs, kwargs_fn=None):
     return kwargs
 
 
-def get_limb_data(skeleton, points):
+def get_limb_data(skeleton, points, visible=None):
     for child in range(skeleton.n_joints):
-        parent = skeleton.parent_index(child)
-        if parent is not None:
-            data = points[[child, parent]]
-            yield data, child
+        if visible is None or visible[child]:
+            parent = skeleton.parent_index(child)
+            if parent is not None and (visible is None or visible[parent]):
+                data = points[[child, parent]]
+                yield data, child
 
 
-def get_lines2d(ax, skeleton, points, kwargs_fn=None, **constant_kwargs):
+def get_lines2d(ax, skeleton, points, kwargs_fn=None, visible=None,
+                **constant_kwargs):
     lines = []
-    for data, child in get_limb_data(skeleton, points):
+    for data, child in get_limb_data(skeleton, points, visible):
         kwargs = _plot_kwargs(
             skeleton.joint(child), constant_kwargs, kwargs_fn)
         line = ax.plot(data[:, 0], data[:, 1], **kwargs)
@@ -87,16 +89,19 @@ def update_lines2d(skeleton, lines, points):
 
 
 def vis2d(skeleton, points, ax=None, change_ax=True, kwargs_fn=None,
-          **constant_kwargs):
+          visible=None, **constant_kwargs):
     """Visualize 2D skeleton data using matplotlib.pyplot."""
     if points.shape != (skeleton.n_joints, 2):
         raise ValueError('Expected points of shape %s, got %s'
                          % ((skeleton.n_joints, 2), points.shape))
-    ax = ax or default_ax2d()
+    if ax is None:
+        ax = default_ax2d()
     if change_ax:
         # ax.invert_yaxis()
         ax.set_aspect('equal', 'datalim')
-    get_lines2d(ax, skeleton, points, kwargs_fn=kwargs_fn, **constant_kwargs)
+    get_lines2d(
+        ax, skeleton, points, kwargs_fn=kwargs_fn, visible=visible,
+        **constant_kwargs)
     return ax
 
 
@@ -147,7 +152,8 @@ def vis3d(skeleton, points, ax=None, change_ax=True, kwargs_fn=None,
     if points.shape != (skeleton.n_joints, 3):
         raise ValueError('Expected points of shape %s, got %s'
                          % ((skeleton.n_joints, 3), points.shape))
-    ax = ax or default_ax3d()
+    if ax is None:
+        ax = default_ax3d()
     if change_ax:
         # ax.invert_yaxis()
         ax.set_aspect('equal', 'datalim')

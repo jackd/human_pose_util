@@ -4,7 +4,7 @@ from human_pose_util.transforms.np_impl import np_impl
 
 
 class Skeleton(object):
-    def __init__(self, child_parent_links):
+    def __init__(self, child_parent_links, skeleton_id=None):
         """
         Create the skeleton with the given id and child parent links.
 
@@ -24,6 +24,7 @@ class Skeleton(object):
             self._indices[parent] if parent is not None else None
             for i, (c, parent) in enumerate(child_parent_links)]
         self._n_joints = len(child_parent_links)
+        self._skeleton_id = skeleton_id
 
     @property
     def root_joint(self):
@@ -93,14 +94,14 @@ class Skeleton(object):
         """Get all symmetric indices for this skeleton."""
         return [self.symmetric_index(j) for j in range(self.n_joints)]
 
-    def reflected_points(self, points):
+    def reflected_points(self, points, axis=-2):
         """
         Get the symmetric version of all points.
 
         Just reorders the 2nd last axis - does not change values.
         """
-        assert(points.shape[-2] == self._n_joints)
-        return points[..., self.symmetric_indices(), :]
+        assert(points.shape[axis] == self._n_joints)
+        return points.take(self.symmetric_indices(), axis=axis)
 
     def height(self, p3):
         raise NotImplementedError()

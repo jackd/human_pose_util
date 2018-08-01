@@ -72,12 +72,66 @@ class ExpandingSkeletonConverter(SkeletonConverter):
         raise NotImplementedError()
 
 
+class ExpandingMidJointSkeletonConverter(ExpandingSkeletonConverter):
+    def __init__(
+            self, input_skeleton, output_skeleton,
+            mid_ids, left_ids, right_ids, oi_map={}, empty_value=None):
+        super(ExpandingMidJointSkeletonConverter, self).__init__(
+            input_skeleton, output_skeleton, oi_map, empty_value=empty_value)
+        if isinstance(mid_ids, (str, unicode)):
+            if not isinstance(left_ids, (str, unicode)):
+                raise ValueError('left_ids must be a str if mid_ids is')
+            if not isinstance(right_ids, (str, unicode)):
+                raise ValueError('right_ids must be a str if mid_ids is')
+            mid_ids = (mid_ids,)
+            left_ids = (left_ids,)
+            right_ids = (right_ids,)
+        self._mids = tuple(output_skeleton.joint_index(m) for m in mid_ids)
+        self._lefts = tuple(output_skeleton.joint_index(l) for l in left_ids)
+        self._rights = tuple(output_skeleton.joint_index(r) for r in right_ids)
+
+    def convert(self, input_data, axis=-2):
+        out = super(ExpandingMidJointSkeletonConverter, self).convert(
+            input_data, axis=axis)
+        left_vals = np.take(out, self._lefts, axis=axis)
+        right_vals = np.take(out, self._rights, axis=axis)
+        if input_data.dtype == np.bool:
+            mid_vals = np.logical_and(left_vals, right_vals)
+        else:
+            mid_vals = (left_vals + right_vals) / 2
+        put(out, self._mids, mid_vals, axis=axis)
+        return out
+
+    def convert_tf(self, input_data, axis=-2, empty_value=None):
+        raise NotImplementedError()
+
+
 class IdentityConverter(SkeletonConverter):
     def __init__(self):
         pass
 
-    def convert(self, input_data):
+    def convert(self, input_data, axis=-2):
         return input_data
 
-    def convert_tf(self, input_data):
+    def convert_tf(self, input_data, axis=-2):
+        return input_data
+
+
+class CompoundConverter(SkeletonConverter):
+    def __init__(self, *converters):
+        self._converters = converters
+        self.input_skeleton = converters[0].input_skeleton
+        self.output_skeleton = converters[-1].output_skeleton
+        for i in range(len(converters) - 1):
+            if converters[i].output_skeleton != converters[i+1].input_skeleton:
+                raise ValueError('Invalid compound converter')
+
+    def convert(self, input_data, axis=-2):
+        for converter in self._converters:
+            input_data = converter.convert(input_data, axis=axis)
+        return input_data
+
+    def convert_tf(self, input_data, axis=-2):
+        for converter in self._converters:
+            input_data = converter.convert_tf(input_data, axis=axis)
         return input_data

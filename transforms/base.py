@@ -1,4 +1,7 @@
+from __future__ import absolute_import
 from __future__ import division
+from __future__ import print_function
+
 from abc import abstractmethod
 
 
@@ -102,6 +105,35 @@ class Transform(object):
 
     @abstractmethod
     def reduce_sum(self, x, axis=None, keepdims=False):
+        pass
+
+    @abstractmethod
+    def reduce_mean(self, x, axis=None, keepdims=False):
+        pass
+
+    @abstractmethod
+    def matrix_determinatnr(self, input):
+        pass
+
+    @abstractmethod
+    def svd(self, tensor, full_matrices=False, compute_uv=True):
+        """Return the singular value decomposition: s, u, v."""
+        pass
+
+    @abstractmethod
+    def ndims(self, x):
+        pass
+
+    @abstractmethod
+    def num_elements(self, x):
+        pass
+
+    @abstractmethod
+    def norm(self, x, ord=None, axis=None, keepdims=False):
+        pass
+
+    @abstractmethod
+    def square(self, x):
         pass
 
     def matmul(self, A, B, transpose_a=False, transpose_b=False):

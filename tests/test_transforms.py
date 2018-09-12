@@ -1,21 +1,30 @@
+#!/usr/bin/python
+from __future__ import absolute_import
 from __future__ import division
+from __future__ import print_function
+
 import unittest
 import numpy as np
 import tensorflow as tf
-import human_pose_util.transforms
 
 
 class TestNPTransforms(unittest.TestCase):
     """Test numpy transformations."""
     @property
     def impl(self):
-        return human_pose_util.transforms.np_impl
+        from human_pose_util.transforms.np_impl import np_impl
+        return np_impl
 
     def assertArraysEqual(self, actual, expected):
         np.testing.assert_equal(actual, expected)
 
     def assertArraysClose(self, actual, expected):
         np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
+
+    def assertArraysCloseOrOpposite(self, actual, expected):
+        assert(
+            np.allclose(actual, expected, rtol=1e-6, atol=1e-6) or
+            np.allclose(actual, -expected, rtol=1e-6, atol=1e-6))
 
     def test_stack(self):
         actual = self.impl.stack([1, 2, 3], axis=0)
@@ -220,7 +229,8 @@ class TestTFTransforms(TestNPTransforms):
     """Test tensorflow transformations."""
     @property
     def impl(self):
-        return human_pose_util.transforms.tf_impl
+        from human_pose_util.transforms.tf_impl import tf_impl
+        return tf_impl
 
     def setUp(self):
         tf.reset_default_graph()
@@ -247,6 +257,41 @@ class TestTFTransforms(TestNPTransforms):
             actual = self._to_numpy(actual, sess)
             expected = self._to_numpy(expected, sess)
         super(TestTFTransforms, self).assertArraysClose(actual, expected)
+
+    def assertArraysCloseOrOpposite(self, actual, expected):
+        with tf.Session() as sess:
+            actual = self._to_numpy(actual, sess)
+            expected = self._to_numpy(expected, sess)
+        super(TestTFTransforms, self).assertArraysCloseOrOpposite(
+            actual, expected)
+
+    def test_svd(self):
+        from human_pose_util.transforms.np_impl import np_impl
+        from human_pose_util.transforms.tf_impl import tf_impl
+        N = 5
+        M = 6
+        B = 1
+        tensor = np.random.normal(size=(B, N, M))
+        s, u, v = tf_impl.svd(tensor)
+        s0, u0, v0 = np_impl.svd(tensor)
+        # print(s.shape, s0.shape)
+        # print(u.shape, u0.shape)
+        # print(v.shape, v0.shape)
+        # with tf.Session() as sess:
+        #     print(sess.run(v))
+        #     print(v0)
+
+        self.assertArraysClose(s, s0)
+        for ui, u0i in zip(tf.unstack(u, axis=2), tf.unstack(u0, axis=2)):
+            self.assertArraysCloseOrOpposite(ui, u0i)
+
+        for vi, v0i in zip(tf.unstack(v, axis=2), tf.unstack(v0, axis=2)):
+            self.assertArraysCloseOrOpposite(vi, v0i)
+
+        # self.assertRowsCloseOrOpposite(
+        #     tf.reshape(tf.transpose(u, (0, 2, 1)), (-1, N)),
+        #     np.reshape(np.transpose(u0, (0, 2, 1)), (-1, N)))
+        # self.assertArraysClose(v, v0)
 
 
 if __name__ == '__main__':

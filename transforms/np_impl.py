@@ -1,5 +1,9 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import numpy as np
-from base import Transform
+from .base import Transform
 
 
 class _TransformNp(Transform):
@@ -57,11 +61,41 @@ class _TransformNp(Transform):
     def reduce_sum(self, x, axis=None, keepdims=False):
         return np.sum(x, axis=axis, keepdims=keepdims)
 
+    def reduce_mean(self, x, axis=None, keepdims=False):
+        return np.mean(x, axis=axis, keepdims=keepdims)
+
     def matmul(self, A, B, transpose_a=False, transpose_b=False):
         return np.matmul(A.T if transpose_a else A, B.T if transpose_b else B)
 
     def transpose(self, tensor, perm):
         return np.transpose(tensor, perm)
+
+    def svd(self, tensor, full_matrices=False, compute_uv=True):
+        out = np.linalg.svd(tensor, full_matrices, compute_uv)
+        if compute_uv:
+            u, s, vt = out
+            v = np.transpose(vt, (0, 2, 1))
+            return s, u, v
+        else:
+            return out
+
+    def matrix_determinant(self, input):
+        return np.linalg.det(input)
+
+    def array(self, data, dtype=None, copy=True):
+        return np.array(data, dtype=dtype, copy=copy)
+
+    def ndims(self, x):
+        return x.ndim
+
+    def num_elements(self, x):
+        return x.size
+
+    def norm(self, x, ord=None, axis=None, keepdims=False):
+        return np.linalg.norm(x, ord=ord, axis=axis, keepdims=keepdims)
+
+    def square(self, x):
+        return np.square(x)
 
 
 np_impl = _TransformNp()

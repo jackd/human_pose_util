@@ -1,6 +1,10 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import tensorflow as tf
 import numpy as np
-from base import Transform
+from .base import Transform
 
 
 class _TransformTf(Transform):
@@ -51,8 +55,45 @@ class _TransformTf(Transform):
     def reduce_sum(self, x, axis=None, keepdims=False):
         return tf.reduce_sum(x, axis=axis, keepdims=keepdims)
 
+    def reduce_mean(self, x, axis=None, keepdims=False):
+        return tf.reduce_mean(x, axis=axis, keepdims=keepdims)
+
     def transpose(self, tensor, perm):
         return tf.transpose(tensor, perm)
+
+    def svd(self, tensor, full_matrices=False, compute_uv=True):
+        return tf.svd(tensor, full_matrices, compute_uv)
+
+    def matrix_determinant(self, input):
+        return tf.matrix_determinant(input)
+
+    def sign(self, x):
+        return tf.sign(x)
+
+    def array(self, data, dtype=None, copy=True):
+        if isinstance(data, (tf.Tensor, tf.Variable)):
+            if data.dtype == dtype:
+                return data
+            else:
+                return tf.cast(data, dtype)
+        elif isinstance(data, (list, tuple, int, float, np.ndarray)):
+            return tf.constant(data, dtype=dtype)
+        else:
+            raise TypeError('Unrecognized type for `data`: "%s"' % type(data))
+
+    def ndims(self, x):
+        return x.shape.ndims
+
+    def num_elements(self, x):
+        return x.shape.num_elements()
+
+    def norm(self, x, ord=None, axis=None, keepdims=False):
+        if ord is None:
+            ord = 'fro'
+        return tf.norm(x, ord=ord, axis=axis, keepdims=keepdims)
+
+    def square(self, x):
+        return tf.square(x)
 
 
 tf_impl = _TransformTf()

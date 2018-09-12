@@ -1,6 +1,9 @@
+from __future__ import absolute_import
 from __future__ import division
+from __future__ import print_function
+
 import numpy as np
-from human_pose_util.transforms.np_impl import np_impl
+from ..transforms.np_impl import np_impl
 
 
 class Skeleton(object):

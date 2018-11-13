@@ -25,7 +25,7 @@ class Skeleton(object):
             raise Exception('Skeleton must have at least 1 root joint.')
         self._parent_indices = [
             self._indices[parent] if parent is not None else None
-            for i, (c, parent) in enumerate(child_parent_links)]
+            for i, (_, parent) in enumerate(child_parent_links)]
         self._n_joints = len(child_parent_links)
         self._skeleton_id = skeleton_id
 

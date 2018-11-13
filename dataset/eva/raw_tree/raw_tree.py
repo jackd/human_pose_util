@@ -319,30 +319,44 @@ if __name__ == '__main__':
     view = sequence.view(camera_code)
 
     def show():
-        from skeleton import s16, s14, native_to_s16, s16_to_s14
-        import matplotlib.pyplot as plt
+        from human_pose_util.dataset.eva.skeleton import \
+            s16, s14, s20_to_s16_converter, s16_to_s14_converter
 
         def convert(native):
-            p16 = native_to_s16(native)
-            p14 = s16_to_s14(p16)
+            p16 = s20_to_s16_converter().convert(native)
+            p14 = s16_to_s14_converter().convert(p16)
             return p16, p14
+
+        def fix_axes3d(data, ax):
+            if isinstance(data, (list, tuple)):
+                data = np.concatenate(data, axis=0)
+            mins = np.min(data, axis=0)
+            maxs = np.max(data, axis=0)
+            diff = maxs - mins
+            r = max(diff) / 2
+            c = (maxs + mins) / 2
+            assert(len(c) == 3)
+            ax.set_xlim(c[0] - r, c[0] + r)
+            ax.set_ylim(c[1] - r, c[1] + r)
+            ax.set_zlim(c[2] - r, c[2] + r)
+
+        def vis(skeleton, p3_world, p3_camera, p2):
+            import matplotlib.pyplot as plt
+            from human_pose_util.skeleton.vis import vis2d, vis3d
+            for p in (p3_world, p3_camera):
+                ax = vis3d(skeleton, p)
+                fix_axes3d(p, ax)
+            ax = vis2d(skeleton, p2)
+            ax.invert_yaxis()
+            plt.show()
 
         p3_world_16, p3_world_14 = convert(view.p3_world[image_frame])
         p3_camera_16, p3_camera_14 = convert(view.p3_camera[image_frame])
 
         p2_16, p2_14 = convert(view.p2[image_frame])
 
-        s16.vis3d(p3_world_16, scatter=False)
-        s16.vis3d(p3_camera_16, scatter=False)
-        s16.vis(p2_16)
-        plt.gca().invert_yaxis()
-        plt.show()
-
-        s14.vis3d(p3_world_14, scatter=False)
-        s14.vis3d(p3_camera_14, scatter=False)
-        s14.vis(p2_14)
-        plt.gca().invert_yaxis()
-        plt.show()
+        vis(s16, p3_world_16, p3_camera_16, p2_16)
+        vis(s14, p3_world_14, p3_camera_14, p2_14)
 
     def print_views():
         for subject in root_node.subjects:

@@ -1,0 +1,5 @@
+numpy
+scipy
+h5py
+tensorflow <= 2.0
+progress

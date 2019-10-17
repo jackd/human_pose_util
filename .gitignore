@@ -1,3 +1,5 @@
 *.pyc
 *.hdf5
 *.npy
+.vscode
+human_pose_util.egg-info
